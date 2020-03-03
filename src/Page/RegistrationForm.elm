@@ -1,7 +1,7 @@
 module Page.RegistrationForm exposing (Model, Msg, init, update, view)
 
-import Html exposing (Html, button, div, form, input, label, li, strong, text, ul)
-import Html.Attributes exposing (class, for, id, required, type_, value)
+import Html exposing (Html, a, button, div, form, input, label, li, strong, text, ul)
+import Html.Attributes exposing (class, for, href, id, required, type_, value)
 import Html.Events exposing (onInput, onSubmit)
 import Http exposing (Body, multipartBody, stringPart)
 import Layout exposing (col)
@@ -23,13 +23,19 @@ type Field
     | Token String
 
 
+type Success
+    = NotSent
+    | HttpSuccess
+    | Error Http.Error
+
+
 type alias Model =
     { username : Field
     , token : Field
     , password : Field
     , passwordConfirmation : Field
     , errors : List String
-    , success : Maybe (Result Http.Error ())
+    , success : Success
     }
 
 
@@ -40,7 +46,7 @@ init url =
     , passwordConfirmation = PasswordConfirmation ""
     , token = Parser.parse tokenParser url |> Maybe.withDefault Nothing |> Maybe.withDefault "" |> Token
     , errors = []
-    , success = Nothing
+    , success = NotSent
     }
 
 
@@ -65,13 +71,11 @@ update msg model =
                 Err errors ->
                     ( { model | errors = errors }, Cmd.none )
 
-        CompletedRegistration result ->
-            case result of
-                Ok _ ->
-                    ( { model | success = Just (Ok ()) }, Cmd.none )
+        CompletedRegistration (Ok _) ->
+            ( { model | success = HttpSuccess }, Cmd.none )
 
-                Err error ->
-                    ( { model | success = Just (Err error) }, Cmd.none )
+        CompletedRegistration (Err error) ->
+            ( { model | success = Error error }, Cmd.none )
 
         EnteredField field ->
             case field of
@@ -144,30 +148,33 @@ displaySuccess model =
                 ]
     in
     case model.success of
-        Nothing ->
+        NotSent ->
             div [] []
 
-        Just result ->
-            case result of
-                Ok _ ->
-                    Html.span [ class "text-success" ] [ text "Great success!" ] |> layout
+        HttpSuccess ->
+            Html.span [ class "text-success" ]
+                [ text "Great success! Visit "
+                , a [ href "https://riot.lgbt" ] [ text "riot.lgbt" ]
+                , text " to log in!"
+                ]
+                |> layout
 
-                Err error ->
-                    case error of
-                        Http.BadUrl _ ->
-                            text "BadUrl" |> layout
+        Error error ->
+            case error of
+                Http.BadUrl _ ->
+                    Html.span [ class "text-error" ] [ text "BadUrl" ] |> layout
 
-                        Http.Timeout ->
-                            text "Timeout" |> layout
+                Http.Timeout ->
+                    Html.span [ class "text-error" ] [ text "Timeout" ] |> layout
 
-                        Http.NetworkError ->
-                            text "NetworkError" |> layout
+                Http.NetworkError ->
+                    Html.span [ class "text-error" ] [ text "NetworkError" ] |> layout
 
-                        Http.BadStatus status ->
-                            text ("BadStatus " ++ String.fromInt status) |> layout
+                Http.BadStatus status ->
+                    Html.span [ class "text-error" ] [ text ("BadStatus " ++ String.fromInt status) ] |> layout
 
-                        Http.BadBody body ->
-                            text ("BadBody " ++ body) |> layout
+                Http.BadBody body ->
+                    Html.span [ class "text-error" ] [ text ("BadBody " ++ body) ] |> layout
 
 
 view : Model -> Html Msg
